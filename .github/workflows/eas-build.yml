@@ -1,0 +1,46 @@
+name: Rayzen IPTV Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Build de celular ou Android TV
+        required: true
+        type: choice
+        options:
+          - preview-phone
+          - preview-android-tv
+        default: preview-phone
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    name: Build APK (${{ inputs.profile }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - name: Configure Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Trigger EAS Android APK build
+        run: pnpm dlx eas-cli build --platform android --profile "${{ inputs.profile }}" --non-interactive --no-wait

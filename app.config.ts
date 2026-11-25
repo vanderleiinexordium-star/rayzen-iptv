@@ -32,7 +32,7 @@ const env = {
   appSlug: "rayzeniptv",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519664086656607/mHkNwpGOOARZSJRe.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -64,7 +64,7 @@ const config: ExpoConfig = {
   slug: env.appSlug,
   version: "1.0.0",
   extra: publicRuntime,
-  orientation: "portrait",
+  orientation: process.env.EXPO_TV === "1" ? "default" : "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "automatic",
@@ -77,7 +77,7 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: "#E6F4FE",
+      backgroundColor: "#070B13",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
@@ -107,6 +107,7 @@ const config: ExpoConfig = {
   plugins: [
     "expo-asset",
     "expo-router",
+    "@react-native-tvos/config-tv",
     [
       "expo-audio",
       {
@@ -126,9 +127,9 @@ const config: ExpoConfig = {
         image: "./assets/images/splash-icon.png",
         imageWidth: 200,
         resizeMode: "contain",
-        backgroundColor: "#ffffff",
+        backgroundColor: "#070B13",
         dark: {
-          backgroundColor: "#000000",
+          backgroundColor: "#070B13",
         },
       },
     ],
