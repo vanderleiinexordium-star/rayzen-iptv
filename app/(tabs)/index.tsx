@@ -18,6 +18,8 @@ export default function HomeScreen() {
   const tvLayout = width >= 800;
   const [page, setPage] = useState<Page>("Início");
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [showCategories, setShowCategories] = useState(false);
   const [sourceList, setSourceList] = useState<Source[]>([]);
   const [items, setItems] = useState<MediaItem[]>(demoCatalog);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -38,9 +40,11 @@ export default function HomeScreen() {
     if (page === "Ao vivo") data = data.filter((x) => x.kind === "live");
     if (page === "Filmes") data = data.filter((x) => x.kind === "movie");
     if (page === "Séries") data = data.filter((x) => x.kind === "series");
+    if (page === "Ao vivo" && categoryFilter) data = data.filter((x) => x.category === categoryFilter);
     const q = query.trim().toLowerCase();
     return q ? data.filter((x) => `${x.title} ${x.category} ${x.description}`.toLowerCase().includes(q)) : data;
-  }, [items, page, query, favorites]);
+  }, [items, page, query, favorites, categoryFilter]);
+  const liveCategories = useMemo(() => Array.from(new Set(items.filter((x) => x.kind === "live").map((x) => x.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [items]);
   const refresh = useCallback(async () => {
     if (busy) return;
     setBusy(true); setNotice("Atualizando fontes uma por vez…");
@@ -90,6 +94,16 @@ export default function HomeScreen() {
         {notice ? <Pressable onPress={() => setNotice("")} style={{ padding: 11, borderRadius: 10, backgroundColor: "#10282A", marginBottom: 12 }}><Text style={{ color: C.cyan }}>{notice}</Text></Pressable> : null}
         {!tvLayout ? <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
           {([{ label: "CANAIS", page: "Ao vivo" as Page, icon: "▣", tint: C.lime }, { label: "FILMES", page: "Filmes" as Page, icon: "◉", tint: "#54B8FF" }, { label: "SÉRIES", page: "Séries" as Page, icon: "▤", tint: C.purple }]).map((tab) => <Pressable key={tab.page} onPress={() => { setPage(tab.page); setQuery(""); }} style={{ flex: 1, minHeight: 68, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: page === tab.page ? "#12302F" : C.panel, borderWidth: page === tab.page ? 1.5 : 1, borderColor: page === tab.page ? tab.tint : C.line }}><Text style={{ color: tab.tint, fontSize: 19, fontWeight: "900", marginBottom: 3 }}>{tab.icon}</Text><Text numberOfLines={1} style={{ color: page === tab.page ? C.text : C.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>{tab.label}</Text></Pressable>)}
+        </View> : null}
+        {page === "Ao vivo" && !tvLayout ? <View style={{ marginBottom: 14 }}>
+          <Pressable onPress={() => setShowCategories((v) => !v)} style={{ minHeight: 48, borderRadius: 13, borderWidth: 1.5, borderColor: showCategories || categoryFilter ? C.cyan : C.line, backgroundColor: C.panel, paddingHorizontal: 15, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ color: C.text, fontSize: 14, fontWeight: "800" }}>☷  CATEGORIAS · {categoryFilter || "TODAS"}</Text>
+            <Text style={{ color: C.cyan, fontSize: 18, fontWeight: "900" }}>{showCategories ? "⌃" : "⌄"}</Text>
+          </Pressable>
+          {showCategories ? <View style={{ marginTop: 8, padding: 10, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel, flexDirection: "row", flexWrap: "wrap" }}>
+            <FocusButton label={"Todas (" + items.filter((x) => x.kind === "live").length + ")"} compact active={!categoryFilter} onPress={() => { setCategoryFilter(""); setShowCategories(false); }} />
+            {liveCategories.map((category) => <FocusButton key={category} label={category + " (" + items.filter((x) => x.kind === "live" && x.category === category).length + ")"} compact active={categoryFilter === category} onPress={() => { setCategoryFilter(category); setShowCategories(false); }} />)}
+          </View> : null}
         </View> : null}
         {page === "Ajustes" ? <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={{ padding: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginBottom: 16 }}><Text style={{ color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 5 }}>Fontes autorizadas</Text><Text style={{ color: C.muted, marginBottom: 15 }}>Adicione apenas playlists ou credenciais de provedores que você tem direito de acessar. Dados salvos no dispositivo.</Text><View style={{ flexDirection: "row", marginBottom: 8 }}><FocusButton label="M3U / M3U8" active={kind === "m3u"} compact onPress={() => setKind("m3u")} /><FocusButton label="Xtream Codes" active={kind === "xtream"} compact onPress={() => setKind("xtream")} /></View>
