@@ -108,6 +108,7 @@ const config: ExpoConfig = {
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    "./plugins/withAndroidLandscape",
     "expo-asset",
     "expo-router",
     "@react-native-tvos/config-tv",
