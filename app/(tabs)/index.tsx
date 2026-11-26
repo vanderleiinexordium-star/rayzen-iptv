@@ -42,13 +42,31 @@ export default function HomeScreen() {
     return q ? data.filter((x) => `${x.title} ${x.category} ${x.description}`.toLowerCase().includes(q)) : data;
   }, [items, page, query, favorites]);
   const refresh = useCallback(async () => {
-    setBusy(true); setNotice("");
+    if (busy) return;
+    setBusy(true); setNotice("Atualizando fontes uma por vez…");
     try {
-      const lists = await Promise.all(sourceList.map((s) => s.kind === "m3u" ? fetchM3U(s) : fetchXtreamCatalog(s)));
-      const merged = lists.flat(); setItems(merged.length ? merged : demoCatalog); setNotice(merged.length ? `Carregados ${merged.length} itens da(s) fonte(s).` : "A fonte não retornou itens; mantendo catálogo demonstrativo.");
-    } catch (e) { setNotice(String((e as Error)?.message || "Não foi possível atualizar a fonte.")); }
-    finally { setBusy(false); }
-  }, [sourceList]);
+      const merged: MediaItem[] = [];
+      const errors: string[] = [];
+      for (const source of sourceList) {
+        try {
+          const result = source.kind === "m3u" ? await fetchM3U(source) : await fetchXtreamCatalog(source);
+          merged.push(...result.slice(0, Math.max(0, 20000 - merged.length)));
+        } catch (e) {
+          errors.push(`${source.name}: ${String((e as Error)?.message || "falha ao atualizar")}`);
+        }
+        if (merged.length >= 20000) break;
+      }
+      if (merged.length) {
+        setItems(merged);
+        setNotice(`Carregados ${merged.length} itens.${errors.length ? " Algumas fontes falharam: " + errors.join(" | ") : ""}`);
+      } else if (errors.length) {
+        setNotice(errors.join(" | "));
+      } else {
+        setItems(demoCatalog);
+        setNotice("Nenhuma fonte cadastrada; mantendo catálogo demonstrativo.");
+      }
+    } finally { setBusy(false); }
+  }, [sourceList, busy]);
   const toggleFavorite = async (id: string) => { const next = favorites.includes(id) ? favorites.filter((x) => x !== id) : [...favorites, id]; setFavorites(next); await saveFavorites(next); };
   const addSource = async () => {
     if (!form.name.trim() || !form.url.trim()) { setNotice("Informe o nome e a URL da fonte autorizada."); return; }
@@ -74,7 +92,7 @@ export default function HomeScreen() {
         {page === "Ajustes" ? <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={{ padding: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginBottom: 16 }}><Text style={{ color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 5 }}>Fontes autorizadas</Text><Text style={{ color: C.muted, marginBottom: 15 }}>Adicione apenas playlists ou credenciais de provedores que você tem direito de acessar. Dados salvos no dispositivo.</Text><View style={{ flexDirection: "row", marginBottom: 8 }}><FocusButton label="M3U / M3U8" active={kind === "m3u"} compact onPress={() => setKind("m3u")} /><FocusButton label="Xtream Codes" active={kind === "xtream"} compact onPress={() => setKind("xtream")} /></View>
           {[{ key: "name", label: "Nome da fonte", placeholder: "Minha fonte autorizada" }, { key: "url", label: kind === "m3u" ? "URL da playlist" : "URL base do provedor", placeholder: kind === "m3u" ? "https://…/playlist.m3u" : "https://…", secure: false }, ...(kind === "xtream" ? [{ key: "username", label: "Usuário", placeholder: "Usuário do provedor", secure: false }, { key: "password", label: "Senha", placeholder: "Senha do provedor", secure: true }] : []), { key: "epgUrl", label: "URL opcional do EPG / XMLTV", placeholder: "https://…/epg.xml", secure: false }].map((f) => <View key={f.key} style={{ marginBottom: 10 }}><Text style={{ color: C.muted, marginBottom: 5 }}>{f.label}</Text><TextInput value={form[f.key as keyof typeof form]} onChangeText={(v) => setForm({ ...form, [f.key]: v })} placeholder={f.placeholder} placeholderTextColor="#74879C" secureTextEntry={"secure" in f && Boolean(f.secure)} autoCapitalize="none" style={{ color: C.text, borderColor: C.line, borderWidth: 1, borderRadius: 10, padding: 12, backgroundColor: "#0A111A" }} /></View>)}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}><FocusButton label="Salvar fonte" active onPress={addSource} /><FocusButton label={busy ? "Atualizando…" : "Atualizar catálogo"} onPress={refresh} /></View>{busy ? <ActivityIndicator color={C.cyan} style={{ marginTop: 10 }} /> : null}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}><FocusButton label="Salvar fonte" active onPress={addSource} /><FocusButton label={busy ? "Atualizando…" : "Atualizar catálogo"} active={busy} onPress={() => { if (!busy) void refresh(); }} /></View>{busy ? <ActivityIndicator color={C.cyan} style={{ marginTop: 10 }} /> : null}
           {sourceList.map((s) => <View key={s.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderColor: C.line, paddingTop: 12, marginTop: 12 }}><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "700" }}>{s.name} · {s.kind.toUpperCase()}</Text><Text style={{ color: C.muted }} numberOfLines={1}>{s.url}</Text><Text style={{ color: C.muted, fontSize: 12 }}>EPG: {s.epgUrl ? "configurado (integração XMLTV pendente)" : "não configurado"}</Text></View><FocusButton label="Remover" compact onPress={() => deleteSource(s.id)} /></View>)}
           </View>
           <View style={{ padding: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginBottom: 16 }}><Text style={{ color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 5 }}>Controle parental</Text><Text style={{ color: C.muted, marginBottom: 12 }}>Defina um PIN local. O bloqueio da sessão precisa ser ativado ao sair ou compartilhar o aparelho.</Text><TextInput value={newPin} onChangeText={setNewPin} placeholder={parentalPin ? "Novo PIN de 4+ dígitos" : "Criar PIN de 4+ dígitos"} placeholderTextColor="#74879C" keyboardType="number-pad" secureTextEntry style={{ color: C.text, borderColor: C.line, borderWidth: 1, borderRadius: 10, padding: 12, backgroundColor: "#0A111A", marginBottom: 10 }} /><FocusButton label="Salvar PIN" active onPress={setParental} />{parentalPin ? <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center" }}><TextInput value={pin} onChangeText={setPin} placeholder="PIN para desbloquear" placeholderTextColor="#74879C" keyboardType="number-pad" secureTextEntry style={{ color: C.text, borderColor: C.line, borderWidth: 1, borderRadius: 10, padding: 11, backgroundColor: "#0A111A", flex: 1, marginRight: 8 }} /><FocusButton label="Desbloquear" onPress={unlockParental} /></View> : null}{!secureReady ? <Text style={{ color: C.lime, marginTop: 10 }}>Preview web: armazenamento seguro do PIN não está disponível. Use o build Android.</Text> : null}</View>
