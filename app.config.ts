@@ -67,7 +67,7 @@ const config: ExpoConfig = {
     ...publicRuntime,
     eas: { projectId: "ca8ae4df-a0eb-4adb-93a9-5b9f94702971" },
   },
-  orientation: process.env.EXPO_TV === "1" ? "default" : "portrait",
+  orientation: "landscape",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "automatic",
