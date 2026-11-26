@@ -7,6 +7,7 @@ on:
       - "app/**"
       - "components/**"
       - "lib/**"
+      - "scripts/**"
       - "assets/**"
       - "app.config.ts"
       - "babel.config.js"
@@ -56,7 +57,24 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install --non-interactive
 
-      - name: Build debug APK
+      - name: Embed JavaScript bundle in debug APK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle_file = Path("android/app/build.gradle")
+          source = gradle_file.read_text()
+          marker = "react {"
+          if marker not in source:
+              raise SystemExit("React Native Gradle configuration not found in android/app/build.gradle")
+          source = source.replace(
+              marker,
+              marker + "\\n    // Bundle the JavaScript app so the APK runs without Metro.\\n    debuggableVariants = []",
+              1,
+          )
+          gradle_file.write_text(source)
+          PY
+
+      - name: Build standalone debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
