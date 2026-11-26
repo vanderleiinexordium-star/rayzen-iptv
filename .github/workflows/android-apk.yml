@@ -68,7 +68,7 @@ jobs:
               raise SystemExit("React Native Gradle configuration not found in android/app/build.gradle")
           source = source.replace(
               marker,
-              marker + "\\n    // Bundle the JavaScript app so the APK runs without Metro.\\n    debuggableVariants = []",
+              marker + "\n    // Bundle the JavaScript app so the APK runs without Metro.\n    debuggableVariants = []",
               1,
           )
           gradle_file.write_text(source)
