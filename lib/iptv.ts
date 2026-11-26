@@ -17,6 +17,7 @@ export function parseM3U(text: string): Array<Pick<MediaItem, "id" | "title" | "
   const result: Array<Pick<MediaItem, "id" | "title" | "kind" | "category" | "streamUrl" | "description" | "poster" | "demo">> = [];
   let meta = "";
   for (const line of lines) {
+    if (result.length >= 12000) break;
     if (line.startsWith("#EXTINF:")) { meta = line; continue; }
     if (!line || line.startsWith("#") || !meta) continue;
     const title = meta.split(",").slice(1).join(",").trim() || "Sem título";
@@ -60,7 +61,20 @@ export async function fetchXtreamCatalog(source: Source): Promise<MediaItem[]> {
 }
 
 export async function fetchM3U(source: Source): Promise<MediaItem[]> {
-  const response = await fetch(source.url);
-  if (!response.ok) throw new Error(`Playlist respondeu HTTP ${response.status}`);
-  return parseM3U(await response.text()) as MediaItem[];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  try {
+    const response = await fetch(source.url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Playlist respondeu HTTP ${response.status}`);
+    const declaredSize = Number(response.headers.get("content-length") || 0);
+    if (declaredSize > 12 * 1024 * 1024) throw new Error("Playlist muito grande (limite de 12 MB). Peça ao provedor uma lista reduzida.");
+    const body = await response.text();
+    if (body.length > 12 * 1024 * 1024) throw new Error("Playlist muito grande (limite de 12 MB). Peça ao provedor uma lista reduzida.");
+    return parseM3U(body) as MediaItem[];
+  } catch (error) {
+    if ((error as Error)?.name === "AbortError") throw new Error("Tempo esgotado ao baixar a playlist. Tente novamente.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
