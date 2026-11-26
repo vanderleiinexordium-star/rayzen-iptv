@@ -63,17 +63,32 @@ export async function fetchXtreamCatalog(source: Source): Promise<MediaItem[]> {
   if (!source.username || !source.password) throw new Error("Informe usuário e senha do provedor autorizado.");
   const base = source.url.replace(/\/$/, "");
   const auth = `username=${encodeURIComponent(source.username)}&password=${encodeURIComponent(source.password)}`;
-  const endpoints: Array<{ action: string; kind: MediaKind }> = [
-    { action: "get_live_streams", kind: "live" }, { action: "get_vod_streams", kind: "movie" }, { action: "get_series", kind: "series" },
+  const endpoints: Array<{ action: string; categoriesAction: string; kind: MediaKind }> = [
+    { action: "get_live_streams", categoriesAction: "get_live_categories", kind: "live" },
+    { action: "get_vod_streams", categoriesAction: "get_vod_categories", kind: "movie" },
+    { action: "get_series", categoriesAction: "get_series_categories", kind: "series" },
   ];
-  const all = await Promise.all(endpoints.map(async ({ action, kind }) => {
-    const response = await fetch(`${base}/player_api.php?${auth}&action=${action}`);
+  const all = await Promise.all(endpoints.map(async ({ action, categoriesAction, kind }) => {
+    const [response, categoriesResponse] = await Promise.all([
+      fetch(`${base}/player_api.php?${auth}&action=${action}`),
+      fetch(`${base}/player_api.php?${auth}&action=${categoriesAction}`).catch(() => null),
+    ]);
     if (!response.ok) throw new Error(`Provedor respondeu HTTP ${response.status}`);
     const json = await response.json() as Array<Record<string, unknown>>;
+    const categoriesJson = categoriesResponse?.ok
+      ? await categoriesResponse.json() as Array<Record<string, unknown>>
+      : [];
+    const categoryNames = new Map<string, string>();
+    for (const categoryRow of categoriesJson) {
+      const categoryId = String(categoryRow.category_id ?? "");
+      const categoryName = String(categoryRow.category_name ?? "").trim();
+      if (categoryId && categoryName) categoryNames.set(categoryId, categoryName);
+    }
     return json.map((row, i): MediaItem => {
       const title = String(row.name || row.title || "Sem título");
       const id = String(row.stream_id || row.series_id || `${action}-${i}`);
-      const category = String(row.category_name || row.category_id || "Outros");
+      const categoryId = String(row.category_id ?? "");
+      const category = String(row.category_name || categoryNames.get(categoryId) || "Outros");
       const ext = String(row.container_extension || "m3u8");
       const streamUrl = kind === "series" ? `${base}/series/${encodeURIComponent(source.username!)}/${encodeURIComponent(source.password!)}/${id}.${ext}` : `${base}/${kind === "live" ? "live" : "movie"}/${encodeURIComponent(source.username!)}/${encodeURIComponent(source.password!)}/${id}.${ext}`;
       return { id: `xt-${kind}-${id}`, title, kind, category, description: `Fonte Xtream · ${category}`, streamUrl, poster: String(row.stream_icon || row.cover || "linear-gradient"), demo: false };
