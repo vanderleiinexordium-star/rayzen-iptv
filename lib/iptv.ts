@@ -89,9 +89,10 @@ export async function fetchXtreamCatalog(source: Source): Promise<MediaItem[]> {
       const id = String(row.stream_id || row.series_id || `${action}-${i}`);
       const categoryId = String(row.category_id ?? "");
       const category = String(row.category_name || categoryNames.get(categoryId) || "Outros");
+      const synopsis = String(row.plot || row.overview || row.description || `Fonte Xtream · ${category}`);
       const ext = String(row.container_extension || "m3u8");
       const streamUrl = kind === "series" ? `${base}/series/${encodeURIComponent(source.username!)}/${encodeURIComponent(source.password!)}/${id}.${ext}` : `${base}/${kind === "live" ? "live" : "movie"}/${encodeURIComponent(source.username!)}/${encodeURIComponent(source.password!)}/${id}.${ext}`;
-      return { id: `xt-${kind}-${id}`, title, kind, category, description: `Fonte Xtream · ${category}`, streamUrl, poster: String(row.stream_icon || row.cover || "linear-gradient"), demo: false };
+      return { id: `xt-${kind}-${id}`, title, kind, category, description: synopsis, streamUrl, poster: String(row.stream_icon || row.cover_big || row.movie_image || row.cover || "linear-gradient"), demo: false };
     });
   }));
   return all.flat();
