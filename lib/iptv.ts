@@ -13,18 +13,40 @@ export const demoCatalog: MediaItem[] = [
 ];
 
 export function parseM3U(text: string): Array<Pick<MediaItem, "id" | "title" | "kind" | "category" | "streamUrl" | "description" | "poster" | "demo">> {
-  const lines = text.split(/\r?\n/).map((line) => line.trim());
+  // Percorre o texto linha a linha sem split/map, que duplicavam milhares de strings
+  // e elevavam bastante o pico de memória em celulares com pouca RAM.
   const result: Array<Pick<MediaItem, "id" | "title" | "kind" | "category" | "streamUrl" | "description" | "poster" | "demo">> = [];
   let meta = "";
-  for (const line of lines) {
-    if (result.length >= 12000) break;
-    if (line.startsWith("#EXTINF:")) { meta = line; continue; }
+  let offset = 0;
+  const maxItems = 12000;
+
+  while (offset < text.length && result.length < maxItems) {
+    const newline = text.indexOf("\n", offset);
+    const end = newline === -1 ? text.length : newline;
+    const line = text.slice(offset, end).trim().replace(/\r$/, "");
+    offset = newline === -1 ? text.length : newline + 1;
+
+    if (line.startsWith("#EXTINF:")) {
+      meta = line;
+      continue;
+    }
     if (!line || line.startsWith("#") || !meta) continue;
-    const title = meta.split(",").slice(1).join(",").trim() || "Sem título";
+
+    const comma = meta.indexOf(",");
+    const title = (comma >= 0 ? meta.slice(comma + 1) : "").trim() || "Sem título";
     const group = meta.match(/group-title="([^"]*)"/i)?.[1] || "Outros";
     const tvgType = meta.match(/type="(movie|series)"/i)?.[1]?.toLowerCase();
     const kind: MediaKind = tvgType === "movie" ? "movie" : tvgType === "series" ? "series" : "live";
-    result.push({ id: `m3u-${result.length}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, title, kind, category: group, description: `Fonte M3U · ${group}`, streamUrl: line, poster: "linear-gradient", demo: false });
+    result.push({
+      id: `m3u-${result.length}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title,
+      kind,
+      category: group,
+      description: `Fonte M3U · ${group}`,
+      streamUrl: line,
+      poster: "linear-gradient",
+      demo: false,
+    });
     meta = "";
   }
   return result;
