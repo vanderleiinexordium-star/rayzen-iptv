@@ -35,8 +35,20 @@ export function parseM3U(text: string): Array<Pick<MediaItem, "id" | "title" | "
     const comma = meta.indexOf(",");
     const title = (comma >= 0 ? meta.slice(comma + 1) : "").trim() || "Sem título";
     const group = meta.match(/group-title="([^"]*)"/i)?.[1] || "Outros";
-    const tvgType = meta.match(/type="(movie|series)"/i)?.[1]?.toLowerCase();
-    const kind: MediaKind = tvgType === "movie" ? "movie" : tvgType === "series" ? "series" : "live";
+    const tvgType = meta.match(/(?:tvg-)?type="(movie|series)"/i)?.[1]?.toLowerCase();
+    const streamPath = line.toLowerCase();
+    const normalizedGroup = group.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+    const normalizedTitle = title.toLowerCase();
+    const looksLikeSeries = /\\b(s\\d{1,2}\\s*e\\d{1,2}|temporada\\s*\\d+|season\\s*\\d+|episodio\\s*\\d+)\\b/i.test(normalizedTitle)
+      || /\\/series\\//.test(streamPath)
+      || /serie|seriado|series|tv show|episodios/.test(normalizedGroup);
+    const looksLikeMovie = /\\/movie\\//.test(streamPath)
+      || /filme|filmes|movie|movies|cinema|vod/.test(normalizedGroup);
+    const kind: MediaKind = tvgType === "movie" ? "movie"
+      : tvgType === "series" ? "series"
+      : looksLikeSeries ? "series"
+      : looksLikeMovie ? "movie"
+      : "live";
     result.push({
       id: `m3u-${result.length}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       title,
