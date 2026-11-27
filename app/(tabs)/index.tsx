@@ -102,10 +102,10 @@ export default function HomeScreen() {
             <Text style={{ color: C.text, fontSize: 14, fontWeight: "800" }}>☷  CATEGORIAS · {categoryFilter || "TODAS"}</Text>
             <Text style={{ color: C.cyan, fontSize: 18, fontWeight: "900" }}>{showCategories ? "⌃" : "⌄"}</Text>
           </Pressable>
-          {showCategories ? <View style={{ marginTop: 8, padding: 10, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel, flexDirection: "row", flexWrap: "wrap" }}>
+          {showCategories ? <ScrollView style={{ marginTop: 8, maxHeight: tvLayout ? 190 : 180, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel }} contentContainerStyle={{ padding: 10, flexDirection: "row", flexWrap: "wrap" }} nestedScrollEnabled scrollEnabled showsVerticalScrollIndicator persistentScrollbar>
             <FocusButton label={"Todas (" + categoryItems.length + ")"} compact active={!categoryFilter} onPress={() => { setCategoryFilter(""); setShowCategories(false); }} />
             {pageCategories.map((category) => <FocusButton key={category} label={category + " (" + categoryItems.filter((x) => x.category === category).length + ")"} compact active={categoryFilter === category} onPress={() => { setCategoryFilter(category); setShowCategories(false); }} />)}
-          </View> : null}
+          </ScrollView> : null}
         </View> : null}
         {page === "Ajustes" ? <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 56 }} showsVerticalScrollIndicator>
           <View style={{ padding: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 16, marginBottom: 16 }}><Text style={{ color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 5 }}>Fontes autorizadas</Text><Text style={{ color: C.muted, marginBottom: 15 }}>Adicione apenas playlists ou credenciais de provedores que você tem direito de acessar. Dados salvos no dispositivo.</Text><View style={{ flexDirection: "row", marginBottom: 8 }}><FocusButton label="M3U / M3U8" active={kind === "m3u"} compact onPress={() => setKind("m3u")} /><FocusButton label="Xtream Codes" active={kind === "xtream"} compact onPress={() => setKind("xtream")} /></View>
