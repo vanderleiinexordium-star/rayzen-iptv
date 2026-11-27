@@ -102,7 +102,7 @@ export default function HomeScreen() {
             <Text style={{ color: C.text, fontSize: 14, fontWeight: "800" }}>☷  CATEGORIAS · {categoryFilter || "TODAS"}</Text>
             <Text style={{ color: C.cyan, fontSize: 18, fontWeight: "900" }}>{showCategories ? "⌃" : "⌄"}</Text>
           </Pressable>
-          {showCategories ? <ScrollView style={{ marginTop: 8, maxHeight: tvLayout ? 190 : 180, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel }} contentContainerStyle={{ padding: 10, flexDirection: "row", flexWrap: "wrap" }} nestedScrollEnabled scrollEnabled showsVerticalScrollIndicator persistentScrollbar>
+          {showCategories ? <ScrollView style={{ marginTop: 8, height: tvLayout ? 210 : 190, flexGrow: 0, flexShrink: 0, borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel }} contentContainerStyle={{ padding: 10, flexDirection: "row", flexWrap: "wrap", alignContent: "flex-start" }} nestedScrollEnabled scrollEnabled={true} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator persistentScrollbar>
             <FocusButton label={"Todas (" + categoryItems.length + ")"} compact active={!categoryFilter} onPress={() => { setCategoryFilter(""); setShowCategories(false); }} />
             {pageCategories.map((category) => <FocusButton key={category} label={category + " (" + categoryItems.filter((x) => x.category === category).length + ")"} compact active={categoryFilter === category} onPress={() => { setCategoryFilter(category); setShowCategories(false); }} />)}
           </ScrollView> : null}
