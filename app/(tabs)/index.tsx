@@ -54,20 +54,39 @@ export default function HomeScreen() {
     if (busy) return;
     setBusy(true); setNotice("Atualizando fontes uma por vez…");
     try {
-      const merged: MediaItem[] = [];
+      const buckets: Record<MediaItem["kind"], MediaItem[]> = { live: [], movie: [], series: [] };
       const errors: string[] = [];
       for (const source of sourceList) {
         try {
           const result = source.kind === "m3u" ? await fetchM3U(source) : await fetchXtreamCatalog(source);
-          merged.push(...result.slice(0, Math.max(0, 20000 - merged.length)));
+          for (const item of result) {
+            const bucket = buckets[item.kind];
+            if (bucket.length < 20000) bucket.push(item);
+          }
         } catch (e) {
           errors.push(`${source.name}: ${String((e as Error)?.message || "falha ao atualizar")}`);
         }
-        if (merged.length >= 20000) break;
+      }
+      // Distribui o limite entre os tipos para que um catálogo grande de filmes
+      // não ocupe os 20 mil lugares e esconda todas as séries.
+      const merged: MediaItem[] = [];
+      const positions = { live: 0, movie: 0, series: 0 };
+      const kinds: MediaItem["kind"][] = ["live", "movie", "series"];
+      while (merged.length < 20000) {
+        let added = false;
+        for (const mediaKind of kinds) {
+          const next = buckets[mediaKind][positions[mediaKind]];
+          if (next && merged.length < 20000) {
+            merged.push(next);
+            positions[mediaKind] += 1;
+            added = true;
+          }
+        }
+        if (!added) break;
       }
       if (merged.length) {
         setItems(merged);
-        setNotice(`Carregados ${merged.length} itens.${errors.length ? " Algumas fontes falharam: " + errors.join(" | ") : ""}`);
+        setNotice(`Carregados ${merged.length} itens · ${buckets.live.length} canais · ${buckets.movie.length} filmes · ${buckets.series.length} séries.${errors.length ? " Algumas fontes falharam: " + errors.join(" | ") : ""}`);
       } else if (errors.length) {
         setNotice(errors.join(" | "));
       } else {
