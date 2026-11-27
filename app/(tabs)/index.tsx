@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { ActivityIndicator, FlatList, Image, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { Ionicons } from "@expo/vector-icons";
 import { IptvPlayer } from "@/components/iptv-player";
-import { demoCatalog, fetchM3U, fetchXtreamCatalog, loadFavorites, loadParentalPin, loadSources, MediaItem, saveFavorites, saveParentalPin, saveSources, Source } from "@/lib/iptv";
+import { demoCatalog, fetchM3U, fetchSeriesEpisodes, fetchXtreamCatalog, loadFavorites, loadParentalPin, loadSources, MediaItem, saveFavorites, saveParentalPin, saveSources, Source } from "@/lib/iptv";
 
 const C = { bg: "#050A12", panel: "#0D1724", raised: "#142437", line: "#24384D", text: "#F5F8FC", muted: "#9AADC2", cyan: "#35E5C8", lime: "#62F36B", purple: "#9B83FF", danger: "#FF758F" };
 type Page = "Início" | "Ao vivo" | "Filmes" | "Séries" | "Favoritos" | "Ajustes";
@@ -26,6 +26,9 @@ export default function HomeScreen() {
   const [items, setItems] = useState<MediaItem[]>(demoCatalog);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [selected, setSelected] = useState<MediaItem | null>(null);
+  const [seriesSelected, setSeriesSelected] = useState<MediaItem | null>(null);
+  const [episodes, setEpisodes] = useState<MediaItem[]>([]);
+  const [episodesBusy, setEpisodesBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [kind, setKind] = useState<"m3u" | "xtream">("m3u");
@@ -106,7 +109,21 @@ export default function HomeScreen() {
   const deleteSource = async (id: string) => { const next = sourceList.filter((s) => s.id !== id); setSourceList(next); await saveSources(next); };
   const setParental = async () => { if (newPin.length < 4) { setNotice("O PIN precisa ter ao menos 4 dígitos."); return; } if (!/^\d+$/.test(newPin)) { setNotice("Use somente números no PIN."); return; } await saveParentalPin(newPin); setParentalPin(newPin); setNewPin(""); setNotice("PIN parental salvo neste dispositivo."); };
   const unlockParental = () => { if (!parentalPin || pin === parentalPin) { setLocked(false); setPin(""); setNotice("Acesso liberado nesta sessão."); } else { setNotice("PIN incorreto."); } };
-  const playItem = (item: MediaItem) => { if (locked && item.kind !== "live") { setNotice("Acesso protegido pelo controle parental."); return; } setSelected(item); };
+  const playItem = async (item: MediaItem) => {
+    if (locked && item.kind !== "live") { setNotice("Acesso protegido pelo controle parental."); return; }
+    if (item.kind === "series" && item.seriesInfoUrl) {
+      setSeriesSelected(item); setEpisodes([]); setEpisodesBusy(true);
+      try {
+        const found = await fetchSeriesEpisodes(item);
+        setEpisodes(found);
+        if (!found.length) setNotice("O provedor não retornou episódios para esta série.");
+      } catch (e) {
+        setNotice(`Não foi possível carregar os episódios: ${String((e as Error)?.message || "erro desconhecido")}`);
+      } finally { setEpisodesBusy(false); }
+      return;
+    }
+    setSelected(item);
+  };
 
   return <ScreenContainer style={{ flex: 1, backgroundColor: C.bg }}>
     <View style={{ flex: 1, flexDirection: tvLayout ? "row" : "column", backgroundColor: C.bg }}>
@@ -169,6 +186,18 @@ export default function HomeScreen() {
         </ScrollView> : page !== "Início" ? <FlatList style={{ flex: 1, minHeight: 0 }} nestedScrollEnabled showsVerticalScrollIndicator data={visible} keyExtractor={(x) => x.id} numColumns={tvLayout ? 4 : width > 620 ? 2 : 1} key={`${tvLayout ? "tv4" : width > 620 ? "tablet2" : "mobile1"}-${page}`} contentContainerStyle={{ paddingBottom: 30 }} columnWrapperStyle={tvLayout || width > 620 ? { gap: 12 } : undefined} ListEmptyComponent={<View style={{ padding: 20 }}><Text style={{ color: C.muted }}>{page === "Favoritos" ? "Seus favoritos aparecerão aqui." : "Nenhum item corresponde à busca."}</Text></View>} renderItem={({ item }) => <View style={{ flex: 1, maxWidth: tvLayout ? 300 : undefined, minWidth: tvLayout ? 170 : undefined, marginBottom: 8, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: tvLayout ? 10 : 16 }}>{(item.kind === "movie" || item.kind === "series") && item.poster && item.poster !== "linear-gradient" ? <Image source={{ uri: item.poster }} resizeMode="cover" style={{ width: "100%", height: tvLayout ? 138 : 190, borderRadius: 10, backgroundColor: C.raised, marginBottom: tvLayout ? 7 : 12 }} /> : null}<View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}><View style={{ flex: 1, marginRight: 10 }}><Text style={{ color: C.cyan, fontSize: tvLayout ? 9 : 11, letterSpacing: 0.7, fontWeight: "800" }}>{item.kind.toUpperCase()} · {item.category.toUpperCase()}</Text><Text style={{ color: C.text, fontSize: tvLayout ? 14 : 19, fontWeight: "800", marginTop: tvLayout ? 3 : 7 }} numberOfLines={2}>{item.title}</Text></View><FocusButton compact label={favorites.includes(item.id) ? "★" : "☆"} onPress={() => toggleFavorite(item.id)} /></View><Text style={{ color: C.muted, marginTop: tvLayout ? 4 : 9, lineHeight: tvLayout ? 15 : 20 }} numberOfLines={tvLayout ? 2 : 3}>{item.description}</Text><View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: tvLayout ? 5 : 12 }}><FocusButton label="▶ Assistir" active onPress={() => playItem(item)} /><FocusButton compact label="Detalhes" onPress={() => setNotice(`${item.title} · ${item.category}${item.demo ? " · Item de demonstração" : ""}`)} /></View></View>} /> : null}
       </View>
     </View>
+    <Modal visible={!!seriesSelected} animationType="slide" supportedOrientations={["portrait", "landscape"]} onRequestClose={() => setSeriesSelected(null)}>
+      <View style={{ flex: 1, backgroundColor: C.bg, padding: 22, paddingTop: 30 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={{ color: C.text, fontSize: 22, fontWeight: "900" }}>{seriesSelected?.title || "Episódios"}</Text>
+            <Text style={{ color: C.muted, marginTop: 4 }}>{episodes.length} episódios disponíveis</Text>
+          </View>
+          <FocusButton label="Fechar" compact onPress={() => setSeriesSelected(null)} />
+        </View>
+        {episodesBusy ? <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator size="large" color={C.cyan} /><Text style={{ color: C.muted, marginTop: 12 }}>Carregando temporadas e episódios…</Text></View> : episodes.length ? <FlatList data={episodes} keyExtractor={(ep) => ep.id} contentContainerStyle={{ paddingBottom: 24 }} renderItem={({ item: ep }) => <Pressable onPress={() => { setSeriesSelected(null); setSelected(ep); }} style={{ padding: 16, marginBottom: 9, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel }}><Text style={{ color: C.cyan, fontWeight: "800", fontSize: 12 }}>{ep.category.toUpperCase()}</Text><Text style={{ color: C.text, fontSize: 16, fontWeight: "700", marginTop: 5 }}>{ep.title}</Text>{ep.description ? <Text numberOfLines={2} style={{ color: C.muted, marginTop: 5 }}>{ep.description}</Text> : null}<Text style={{ color: C.lime, marginTop: 8, fontWeight: "800" }}>▶ Reproduzir episódio</Text></Pressable>} /> : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.muted, textAlign: "center" }}>Não foi possível encontrar episódios. Verifique se sua fonte Xtream fornece os detalhes desta série.</Text></View>}
+      </View>
+    </Modal>
     <IptvPlayer item={selected} onClose={() => setSelected(null)} />
   </ScreenContainer>;
 }
