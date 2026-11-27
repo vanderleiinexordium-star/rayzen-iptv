@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 export type MediaKind = "live" | "movie" | "series";
-export type MediaItem = { id: string; title: string; kind: MediaKind; category: string; description: string; streamUrl: string; poster: string; demo: boolean };
+export type MediaItem = { id: string; title: string; kind: MediaKind; category: string; description: string; streamUrl: string; poster: string; demo: boolean; seriesInfoUrl?: string };
 export type Source = { id: string; name: string; kind: "m3u" | "xtream"; url: string; username?: string; password?: string; epgUrl?: string };
 const DEMO_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 export const demoCatalog: MediaItem[] = [
@@ -104,7 +104,7 @@ export async function fetchXtreamCatalog(source: Source): Promise<MediaItem[]> {
       const synopsis = String(row.plot || row.overview || row.description || `Fonte Xtream · ${category}`);
       const ext = String(row.container_extension || "m3u8");
       const streamUrl = kind === "series" ? `${base}/series/${encodeURIComponent(source.username!)}/${encodeURIComponent(source.password!)}/${id}.${ext}` : `${base}/${kind === "live" ? "live" : "movie"}/${encodeURIComponent(source.username!)}/${encodeURIComponent(source.password!)}/${id}.${ext}`;
-      return { id: `xt-${kind}-${id}`, title, kind, category, description: synopsis, streamUrl, poster: String(row.stream_icon || row.cover_big || row.movie_image || row.cover || "linear-gradient"), demo: false };
+      return { id: `xt-${kind}-${id}`, title, kind, category, description: synopsis, streamUrl, poster: String(row.stream_icon || row.cover_big || row.movie_image || row.cover || "linear-gradient"), demo: false, ...(kind === "series" ? { seriesInfoUrl: `${base}/player_api.php?${auth}&action=get_series_info&series_id=${encodeURIComponent(id)}` } : {}) };
     });
   }));
   return all.flat();
@@ -127,4 +127,31 @@ export async function fetchM3U(source: Source): Promise<MediaItem[]> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function fetchSeriesEpisodes(series: MediaItem): Promise<MediaItem[]> {
+  if (!series.seriesInfoUrl) return [];
+  const response = await fetch(series.seriesInfoUrl);
+  if (!response.ok) throw new Error(`Provedor respondeu HTTP ${response.status} ao buscar episódios.`);
+  const payload = await response.json() as { episodes?: Record<string, Array<Record<string, unknown>>> | Array<Record<string, unknown>> };
+  const groups = payload.episodes;
+  if (!groups) return [];
+  const base = series.seriesInfoUrl.split("/player_api.php?")[0];
+  const query = series.seriesInfoUrl.split("?")[1] || "";
+  const params = new URLSearchParams(query);
+  const username = params.get("username") || "";
+  const password = params.get("password") || "";
+  const rows = Array.isArray(groups) ? groups.map((row, index) => ({ season: "Temporada", index, row })) : Object.entries(groups).flatMap(([season, list]) => list.map((row, index) => ({ season: `Temporada ${season}`, index, row })));
+  return rows.map(({ season, index, row }) => {
+    const id = String(row.id || row.episode_id || `${season}-${index}`);
+    const ext = String(row.container_extension || "mp4");
+    const episodeTitle = String(row.title || row.name || `Episódio ${index + 1}`);
+    const episodeNumber = row.episode_num ? `E${row.episode_num}` : `E${index + 1}`;
+    const info = row.info && typeof row.info === "object" ? row.info as Record<string, unknown> : {};
+    return {
+      id: `xt-episode-${id}`, title: `${series.title} · ${episodeNumber} — ${episodeTitle}`, kind: "series" as MediaKind,
+      category: season, description: String(info.plot || row.plot || season), streamUrl: `${base}/series/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${id}.${ext}`,
+      poster: String(info.movie_image || info.cover_big || series.poster || "linear-gradient"), demo: false,
+    };
+  });
 }
